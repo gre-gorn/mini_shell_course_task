@@ -4,10 +4,11 @@
 
 #define INDEX_OF_CMD 0
 #define INDEX_OF_ARGV1 1
+#define ARGS_VARIABLE -1
 
 typedef union
 {
-  int *i_pointer;
+  int i_var;
   char *s_pointer;
 } data_pointers;
 
@@ -16,8 +17,15 @@ typedef int (*cmd_fn)(data_pointers[]);
 typedef enum
 {
   CMD_EXIT = 0,
-  CMD_ECHO = 1
+  CMD_ECHO = 1,
+  CMD_TYPE = 2,
+  LAST_CMD = 3
 } command_type;
+
+typedef struct
+{
+  const char *str;
+} message;
 
 typedef struct
 {
@@ -25,17 +33,24 @@ typedef struct
   cmd_fn fn;
   int argc;
   command_type type;
+  const char *desc;
 } command;
 
 int cmd_exit(data_pointers args[]);
 int cmd_echo(data_pointers args[]);
+int cmd_type(data_pointers args[]);
 
 int shouldExit = 0;
 
-command commands[] = {
-    {"exit", cmd_exit, 1, CMD_EXIT},
-    {"echo", cmd_echo, -1, CMD_ECHO} //-1 means unknow number of args
-};
+static const char built_in_msg[] = "is a shell builtin";
+static const char not_found_msg[] = "not found";
+
+command commands[LAST_CMD] = {
+    {"exit", cmd_exit, 1, CMD_EXIT, built_in_msg},
+    {"echo", cmd_echo, ARGS_VARIABLE, CMD_ECHO, built_in_msg},
+    {"type", cmd_type, 1, CMD_TYPE, built_in_msg}};
+
+static const int commands_count = sizeof(commands) / sizeof(command);
 
 int main(int argc, char *argv[])
 {
@@ -62,7 +77,7 @@ int main(int argc, char *argv[])
     {
       int i;
       int found = 0;
-      int commands_count = sizeof(commands) / sizeof(command);
+      // int commands_count = sizeof(commands) / sizeof(command);
 
       char *buffer_copy = strdup(command_buffer);
       char *p = buffer_copy;
@@ -79,7 +94,14 @@ int main(int argc, char *argv[])
         if (token_index >= tokens_cap)
         {
           tokens_cap *= 2;
-          tokens = realloc(tokens, tokens_cap * sizeof(char *));
+          char **tmp = realloc(tokens, tokens_cap * sizeof(char *));
+          if (!tmp)
+          {
+            free(tokens);
+            free(buffer_copy);
+            return 1;
+          }
+          tokens = tmp;
         }
 
         tokens[token_index] = token;
@@ -94,15 +116,24 @@ int main(int argc, char *argv[])
           continue;
 
         int argc = token_index - 1;
-        data_pointers dps[argc + 1];
-        if (argc == commands[i].argc || (commands[i].argc < 0 && token_index - 1 != commands[i].argc))
+
+        data_pointers *dps = malloc((argc + 1) * sizeof(data_pointers));
+        if (!dps)
+        {
+          free(tokens);
+          free(buffer_copy);
+          return 1;
+        }
+        memset(dps, 0, (argc + 1) * sizeof(data_pointers));
+
+        if (commands[i].argc == ARGS_VARIABLE || argc == commands[i].argc)
         {
           switch (commands[i].type)
           {
           case CMD_EXIT:
           {
             int value = atoi(tokens[INDEX_OF_CMD + INDEX_OF_ARGV1]);
-            dps[0].i_pointer = &value;
+            dps[0].i_var = value;
           }
           break;
           case CMD_ECHO:
@@ -111,7 +142,11 @@ int main(int argc, char *argv[])
             {
               dps[arg_index].s_pointer = tokens[INDEX_OF_CMD + INDEX_OF_ARGV1 + arg_index];
             }
-            dps[argc].s_pointer = NULL;
+          }
+          break;
+          case CMD_TYPE:
+          {
+            dps[0].s_pointer = tokens[INDEX_OF_CMD + INDEX_OF_ARGV1];
           }
           break;
           default:
@@ -124,6 +159,7 @@ int main(int argc, char *argv[])
           printf("%s: invalid number of arguments. Given %d, expected: %d\n", commands[i].command, (token_index - 1), commands[i].argc);
         }
 
+        free(dps);
         found = 1;
         break;
       }
@@ -145,7 +181,7 @@ int main(int argc, char *argv[])
 int cmd_exit(data_pointers args[])
 {
   shouldExit = 1;
-  return *args[0].i_pointer;
+  return args[0].i_var;
 }
 
 int cmd_echo(data_pointers args[])
@@ -155,6 +191,29 @@ int cmd_echo(data_pointers args[])
   {
     printf("%s ", p->s_pointer);
     p++;
+  }
+
+  printf("\n");
+
+  return 0;
+}
+
+int cmd_type(data_pointers args[])
+{
+  int found = 0;
+
+  for (int i = 0; i < commands_count; i++)
+  {
+    if (strcmp(args[0].s_pointer, commands[i].command))
+      continue;
+
+    found = 1;
+    printf("%s: %s", commands[i].command, commands[i].desc);
+  }
+
+  if (!found)
+  {
+    printf("%s: %s", args[0].s_pointer, not_found_msg);
   }
 
   printf("\n");
