@@ -208,12 +208,12 @@ int cmd_type(data_pointers args[])
       continue;
 
     found = 1;
-    printf("%s: %s", commands[i].command, commands[i].desc);
+    printf("%s %s", commands[i].command, commands[i].desc);
   }
 
   if (!found)
   {
-    printf("%s: %s", args[0].s_pointer, not_found_msg);
+    printf("%s %s", args[0].s_pointer, not_found_msg);
   }
 
   printf("\n");
