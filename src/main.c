@@ -15,7 +15,8 @@ typedef int (*cmd_fn)(data_pointers[]);
 
 typedef enum
 {
-  CMD_EXIT = 0
+  CMD_EXIT = 0,
+  CMD_ECHO = 1
 } command_type;
 
 typedef struct
@@ -27,11 +28,14 @@ typedef struct
 } command;
 
 int cmd_exit(data_pointers args[]);
+int cmd_echo(data_pointers args[]);
 
 int shouldExit = 0;
 
 command commands[] = {
-    {"exit", cmd_exit, 1, CMD_EXIT}};
+    {"exit", cmd_exit, 1, CMD_EXIT},
+    {"echo", cmd_echo, -1, CMD_ECHO} //-1 means unknow number of args
+};
 
 int main(int argc, char *argv[])
 {
@@ -89,20 +93,31 @@ int main(int argc, char *argv[])
         if (strcmp(tokens[INDEX_OF_CMD], commands[i].command))
           continue;
 
-        if (token_index - 1 == commands[i].argc)
+        int argc = token_index - 1;
+        data_pointers dps[argc + 1];
+        if (argc == commands[i].argc || (commands[i].argc < 0 && token_index - 1 != commands[i].argc))
         {
           switch (commands[i].type)
           {
           case CMD_EXIT:
+          {
             int value = atoi(tokens[INDEX_OF_CMD + INDEX_OF_ARGV1]);
-            data_pointers dp[1];
-            dp[0].i_pointer = &value;
-            exit_code = commands[i].fn(dp);
-            break;
-
+            dps[0].i_pointer = &value;
+          }
+          break;
+          case CMD_ECHO:
+          {
+            for (int arg_index = 0; arg_index < argc; arg_index++)
+            {
+              dps[arg_index].s_pointer = tokens[INDEX_OF_CMD + INDEX_OF_ARGV1 + arg_index];
+            }
+            dps[argc].s_pointer = NULL;
+          }
+          break;
           default:
             break;
           }
+          exit_code = commands[i].fn(dps);
         }
         else
         {
@@ -131,4 +146,18 @@ int cmd_exit(data_pointers args[])
 {
   shouldExit = 1;
   return *args[0].i_pointer;
+}
+
+int cmd_echo(data_pointers args[])
+{
+  data_pointers *p = args;
+  while (p->s_pointer != NULL)
+  {
+    printf("%s ", p->s_pointer);
+    p++;
+  }
+
+  printf("\n");
+
+  return 0;
 }
