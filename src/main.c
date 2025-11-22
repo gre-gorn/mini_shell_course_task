@@ -28,7 +28,7 @@ typedef enum
   CMD_EXIT = 0,
   CMD_ECHO = 1,
   CMD_TYPE = 2,
-  LAST_CMD = 3
+  LAST_CMD
 } command_type;
 
 typedef struct
@@ -51,13 +51,16 @@ int shouldExit = 0; /* TODO: consider using signal to exit */
 command commands[LAST_CMD] = {
     {"exit", cmd_exit, 1, CMD_EXIT, built_in_msg},
     {"echo", cmd_echo, ARGS_VARIABLE, CMD_ECHO, built_in_msg},
-    {"type", cmd_type, 1, CMD_TYPE, built_in_msg}};
+    {"type", cmd_type, 1, CMD_TYPE, built_in_msg},
+};
 
 static const int commands_count = sizeof(commands) / sizeof(command);
 
 /* helper functions declaratios */
+static char *get_cmd(char **tokens);
 static char *get_arg(char **tokens, int index);
 static int check_cmd(const char *cmd);
+static int exec_cmd(char *cmd, data_pointers args[], int args_count);
 
 int main(int argc, char *argv[])
 {
@@ -134,22 +137,21 @@ int main(int argc, char *argv[])
     }
 
     tokens[token_index] = NULL;
+    int arg_count = token_index - 1;
+
+    data_pointers *dps = malloc((arg_count + 1) * sizeof(data_pointers));
+    if (!dps)
+    {
+      free(tokens);
+      free(buffer_copy);
+      return 1;
+    }
+    memset(dps, 0, (arg_count + 1) * sizeof(data_pointers));
 
     for (i = 0; i < commands_count; i++)
     {
-      if (strcmp(tokens[CMD_IDX], commands[i].command) != 0)
+      if (strcmp(get_cmd(tokens), commands[i].command) != 0)
         continue;
-
-      int arg_count = token_index - 1;
-
-      data_pointers *dps = malloc((arg_count + 1) * sizeof(data_pointers));
-      if (!dps)
-      {
-        free(tokens);
-        free(buffer_copy);
-        return 1;
-      }
-      memset(dps, 0, (arg_count + 1) * sizeof(data_pointers));
 
       if (commands[i].argc == ARGS_VARIABLE || arg_count == commands[i].argc)
       {
@@ -158,7 +160,7 @@ int main(int argc, char *argv[])
         case CMD_EXIT:
         {
           char *end;
-          long value = strtol(get_arg(tokens, 0), &end, 10); /* strtol(tokens[CMD_IDX + ARG1_IDX], &end, 10); */
+          long value = strtol(get_arg(tokens, 0), &end, 10);
 
           if (*end != '\0')
           {
@@ -174,15 +176,16 @@ int main(int argc, char *argv[])
           int arg_index;
           for (arg_index = 0; arg_index < arg_count; arg_index++)
           {
-            dps[arg_index].s_pointer = get_arg(tokens, arg_index); /* [CMD_IDX + ARG1_IDX + arg_index]; */
+            dps[arg_index].s_pointer = get_arg(tokens, arg_index);
           }
         }
         break;
         case CMD_TYPE:
         {
-          dps[0].s_pointer = get_arg(tokens, 0); /* tokens[CMD_IDX + ARG1_IDX]; */
+          dps[0].s_pointer = get_arg(tokens, 0);
         }
         break;
+          break;
         default:
           break;
         }
@@ -197,21 +200,37 @@ int main(int argc, char *argv[])
         printf("%s: invalid number of arguments. Given %d, expected: %d\n", commands[i].command, (token_index - 1), commands[i].argc);
       }
 
-      free(dps);
       found = 1;
       break;
     }
 
     if (!found)
     {
-      printf("%s: command not found\n", command_buffer);
+      /* TODO: implement function data_pointers[] get_args(char **tokens) */
+
+      int arg_index;
+      for (arg_index = 0; arg_index < arg_count; arg_index++)
+      {
+        dps[arg_index].s_pointer = get_arg(tokens, arg_index);
+      }
+
+      if (exec_cmd(get_cmd(tokens), dps, arg_count) != 0)
+      {
+        printf("%s: command not found\n", command_buffer);
+      }
     }
 
+    free(dps);
     free(tokens);
     free(buffer_copy);
   }
 
   return exit_code;
+}
+
+static char *get_cmd(char **tokens)
+{
+  return tokens[CMD_IDX];
 }
 
 static char *get_arg(char **tokens, int index)
@@ -250,7 +269,35 @@ static int check_cmd(const char *cmd)
   return 1;
 }
 
-/* COMMANDS IMPLEMENTATION */
+static int exec_cmd(char *cmd, data_pointers args[], int args_count)
+{
+  pid_t pid = fork();
+  int arg_index;
+
+  if (pid == 0)
+  {
+    /* subprocess */
+    int arg_index = 0;
+    char *argv[args_count + 1];
+
+    argv[arg_index] = cmd;
+    for (arg_index = 1; arg_index < args_count; arg_index++)
+    {
+      argv[arg_index] = args[arg_index - 1].s_pointer;
+    }
+
+    execvp(cmd, argv);
+    _exit(1);
+  }
+
+  /* wait for execute */
+  int status;
+  waitpid(pid, &status, 0);
+
+  return status;
+}
+
+/* SHELL INTERNAL COMMANDS IMPLEMENTATION */
 
 int cmd_exit(data_pointers args[])
 {
