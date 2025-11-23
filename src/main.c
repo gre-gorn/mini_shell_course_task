@@ -50,7 +50,7 @@ int shouldExit = 0; /* TODO: consider using signal to exit */
 
 /* minishell commands definitions */
 command commands[LAST_CMD] = {
-    {"exit", cmd_exit, 1, CMD_EXIT, built_in_msg},
+    {"exit", cmd_exit, ARGS_VARIABLE, CMD_EXIT, built_in_msg},
     {"echo", cmd_echo, ARGS_VARIABLE, CMD_ECHO, built_in_msg},
     {"type", cmd_type, 1, CMD_TYPE, built_in_msg},
 };
@@ -60,7 +60,7 @@ static const int commands_count = sizeof(commands) / sizeof(command);
 /* helper functions declaratios */
 static char *get_cmd(char **tokens);
 static char *get_arg(char **tokens, int index);
-static int check_cmd(const char *cmd);
+static int check_cmd(const char *cmd, int verbose);
 static int exec_cmd(char *cmd, data_pointers args[], int args_count);
 
 int main(int argc, char *argv[])
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
   /* Flush after every printf */
   setbuf(stdout, NULL);
 
-  while (!shouldExit)
+  while (shouldExit == 0)
   {
     /* prompt */
     printf("$ ");
@@ -147,6 +147,7 @@ int main(int argc, char *argv[])
       free(buffer_copy);
       return 1;
     }
+
     memset(dps, 0, (arg_count + 1) * sizeof(data_pointers));
 
     for (i = 0; i < commands_count; i++)
@@ -160,16 +161,19 @@ int main(int argc, char *argv[])
         {
         case CMD_EXIT:
         {
-          char *end;
-          long value = strtol(get_arg(tokens, 0), &end, 10);
-
-          if (*end != '\0')
+          if (arg_count == 1)
           {
-            printf("%s: %s\n", commands[i].command, numeric_arg_req_msg);
-            value = 1;
-          }
+            char *end;
+            long value = strtol(get_arg(tokens, 0), &end, 10);
 
-          dps[0].i_var = (int)value;
+            if (*end != '\0')
+            {
+              printf("%s: %s\n", commands[i].command, numeric_arg_req_msg);
+              value = 1;
+            }
+
+            dps[0].i_var = (int)value;
+          }
         }
         break;
         case CMD_ECHO:
@@ -196,28 +200,27 @@ int main(int argc, char *argv[])
 
         exit_code = commands[i].fn(dps);
       }
-      else
-      {
-        printf("%s: invalid number of arguments. Given %d, expected: %d\n", commands[i].command, (token_index - 1), commands[i].argc);
-      }
 
       found = 1;
       break;
     }
 
-    if (!found)
+    if (found == 0)
     {
       /* TODO: implement function data_pointers[] get_args(char **tokens) */
-
-      int arg_index;
-      for (arg_index = 0; arg_index < arg_count; arg_index++)
+      char *cmd = get_cmd(tokens);
+      if (check_cmd(cmd, 0) == 0)
       {
-        dps[arg_index].s_pointer = get_arg(tokens, arg_index);
+        int arg_index;
+        for (arg_index = 0; arg_index < arg_count; arg_index++)
+        {
+          dps[arg_index].s_pointer = get_arg(tokens, arg_index);
+        }
+        exec_cmd(cmd, dps, arg_count);
       }
-
-      if (exec_cmd(get_cmd(tokens), dps, arg_count) != 0)
+      else
       {
-        printf("%s: command not found\n", command_buffer);
+        printf("%s: command not found\n", cmd);
       }
     }
 
@@ -226,7 +229,7 @@ int main(int argc, char *argv[])
     free(buffer_copy);
   }
 
-  return exit_code;
+  exit(exit_code);
 }
 
 static char *get_cmd(char **tokens)
@@ -239,11 +242,13 @@ static char *get_arg(char **tokens, int index)
   return tokens[CMD_IDX + ARG1_IDX + index];
 }
 
-static int check_cmd(const char *cmd)
+static int check_cmd(const char *cmd, int verbose)
 {
   const char *path = getenv("PATH");
   if (!path)
+  {
     return 1;
+  }
 
   char path_buf[512];
   strncpy(path_buf, path, sizeof(path_buf));
@@ -263,7 +268,10 @@ static int check_cmd(const char *cmd)
     if (access(full_path, X_OK) != 0)
       continue;
 
-    printf("%s is %s\n", cmd, full_path);
+    if (verbose == 1)
+    {
+      printf("%s is %s\n", cmd, full_path);
+    }
     return 0;
   }
 
@@ -279,10 +287,12 @@ static int exec_cmd(char *cmd, data_pointers args[], int args_count)
   {
     /* subprocess */
     int arg_index = 0;
-    char *argv[args_count + 1];
+    char *argv[args_count + 2];
+
+    argv[args_count + 1] = NULL; /* NULL terminatd array */
 
     argv[arg_index] = cmd;
-    for (arg_index = 1; arg_index < args_count; arg_index++)
+    for (arg_index = 1; arg_index < args_count + 2; arg_index++)
     {
       argv[arg_index] = args[arg_index - 1].s_pointer;
     }
@@ -337,7 +347,7 @@ int cmd_type(data_pointers args[])
 
   if (!found)
   {
-    if (check_cmd(args[0].s_pointer) != 0)
+    if (check_cmd(args[0].s_pointer, 1) != 0)
     {
       printf("%s %s\n", args[0].s_pointer, not_found_msg);
     }
