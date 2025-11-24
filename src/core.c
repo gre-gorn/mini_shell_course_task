@@ -6,7 +6,7 @@
 
 int tokenize(char ***tokens, char *buffer_copy, int *arg_count)
 {
-    int errno = 0;
+    int ret = 0;
 
     char *p = buffer_copy;
     char *token;
@@ -16,8 +16,7 @@ int tokenize(char ***tokens, char *buffer_copy, int *arg_count)
 
     if (*tokens == NULL)
     {
-        printf("Here!");
-        errno = 1;
+        ret = 1;
     }
     else
     {
@@ -34,8 +33,7 @@ int tokenize(char ***tokens, char *buffer_copy, int *arg_count)
                 char **tmp = realloc(*tokens, tokens_cap * sizeof(char *));
                 if (!tmp)
                 {
-                    printf("And here!");
-                    errno = 1;
+                    ret = 1;
                     break;
                 }
                 *tokens = tmp;
@@ -49,21 +47,23 @@ int tokenize(char ***tokens, char *buffer_copy, int *arg_count)
         *arg_count = token_index - 1;
     }
 
-    return errno;
+    return ret;
 }
 
 int prepare_datapointers(data_pointers **dps, int arg_count)
 {
-    int errno = 0;
+    int ret = 0;
+
     *dps = malloc((arg_count + 1) * sizeof(data_pointers));
+
     if (*dps != NULL)
     {
         memset(*dps, 0, (arg_count + 1) * sizeof(data_pointers));
     }
     else
     {
-        errno = 1;
+        ret = 1;
     }
 
-    return errno;
+    return ret;
 }
