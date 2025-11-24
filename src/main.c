@@ -4,64 +4,32 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
+#include "types.h"
+#include "externs.h"
+
 #define ARGS_VARIABLE -1
 
-static const int CMD_IDX = 0;
-static const int ARG1_IDX = 1;
+const int CMD_IDX = 0;
+const int ARG1_IDX = 1;
 
 /* string constant definitions */
-static const char *not_found_msg = "not found";
-static const char *numeric_arg_req_msg = "numeric argument required";
-
-static const char built_in_msg[] = "is a shell builtin"; /* [] needed for initialization while compilation time */
-
-/* type definitions */
-typedef union
-{
-  int i_var;
-  char *s_pointer;
-} data_pointers;
-
-typedef int (*cmd_fn)(data_pointers[]);
-
-typedef enum
-{
-  CMD_EXIT = 0,
-  CMD_ECHO = 1,
-  CMD_TYPE = 2,
-  LAST_CMD
-} command_type;
-
-typedef struct
-{
-  char *command;
-  cmd_fn fn;
-  int argc;
-  command_type type;
-  const char *desc;
-} command;
-
-/* mini shell commands declarations */
-int cmd_exit(data_pointers args[]);
-int cmd_echo(data_pointers args[]);
-int cmd_type(data_pointers args[]);
-
-int shouldExit = 0; /* TODO: consider using signal to exit */
+const char *not_found_msg = "not found";
+const char *numeric_arg_req_msg = "numeric argument required";
+const char *no_such_file_org_directory_msg = "No such file or directory";
+const char built_in_msg[] = "is a shell builtin"; /* [] needed for initialization while compilation time */
 
 /* minishell commands definitions */
-command commands[LAST_CMD] = {
+const command commands[LAST_CMD] = {
     {"exit", cmd_exit, ARGS_VARIABLE, CMD_EXIT, built_in_msg},
     {"echo", cmd_echo, ARGS_VARIABLE, CMD_ECHO, built_in_msg},
     {"type", cmd_type, 1, CMD_TYPE, built_in_msg},
+    {"pwd", cmd_pwd, 0, CMD_PWD, built_in_msg},
+    {"cd", cmd_cd, 1, CMD_CD, built_in_msg},
 };
 
-static const int commands_count = sizeof(commands) / sizeof(command);
+const int commands_count = sizeof(commands) / sizeof(command);
 
-/* helper functions declaratios */
-static char *get_cmd(char **tokens);
-static char *get_arg(char **tokens, int index);
-static int check_cmd(const char *cmd, int verbose);
-static int exec_cmd(char *cmd, data_pointers args[], int args_count);
+int shouldExit = 0; /* TODO: consider using signal to exit */
 
 int main(int argc, char *argv[])
 {
@@ -84,13 +52,15 @@ int main(int argc, char *argv[])
       if (feof(stdin))
       {
         /* ctrl + d – standard interruption */
-        break;
+        shouldExit = 1;
+        continue;
       }
 
       if (ferror(stdin))
       {
         exit_code = 1;
-        break;
+        shouldExit = 1;
+        continue;
       }
     }
 
@@ -109,8 +79,8 @@ int main(int argc, char *argv[])
     char **tokens = malloc(tokens_cap * sizeof(char *));
     if (!tokens)
     {
-      free(buffer_copy);
-      return 1;
+      shouldExit = 1;
+      continue;
     }
 
     int token_index = 0;
@@ -126,9 +96,8 @@ int main(int argc, char *argv[])
         char **tmp = realloc(tokens, tokens_cap * sizeof(char *));
         if (!tmp)
         {
-          free(tokens);
-          free(buffer_copy);
-          return 1;
+          shouldExit = 1;
+          break;
         }
         tokens = tmp;
       }
@@ -143,9 +112,8 @@ int main(int argc, char *argv[])
     data_pointers *dps = malloc((arg_count + 1) * sizeof(data_pointers));
     if (!dps)
     {
-      free(tokens);
-      free(buffer_copy);
-      return 1;
+      shouldExit = 1;
+      continue;
     }
 
     memset(dps, 0, (arg_count + 1) * sizeof(data_pointers));
@@ -186,11 +154,11 @@ int main(int argc, char *argv[])
         }
         break;
         case CMD_TYPE:
+        case CMD_CD:
         {
           dps[0].s_pointer = get_arg(tokens, 0);
         }
         break;
-          break;
         default:
           break;
         }
@@ -224,25 +192,30 @@ int main(int argc, char *argv[])
       }
     }
 
-    free(dps);
-    free(tokens);
-    free(buffer_copy);
+    if (dps != NULL)
+      free(dps);
+
+    if (tokens != NULL)
+      free(tokens);
+
+    if (buffer_copy != NULL)
+      free(buffer_copy);
   }
 
   exit(exit_code);
 }
 
-static char *get_cmd(char **tokens)
+char *get_cmd(char **tokens)
 {
   return tokens[CMD_IDX];
 }
 
-static char *get_arg(char **tokens, int index)
+char *get_arg(char **tokens, int index)
 {
   return tokens[CMD_IDX + ARG1_IDX + index];
 }
 
-static int check_cmd(const char *cmd, int verbose)
+int check_cmd(const char *cmd, int verbose)
 {
   const char *path = getenv("PATH");
   if (!path)
@@ -278,7 +251,7 @@ static int check_cmd(const char *cmd, int verbose)
   return 1;
 }
 
-static int exec_cmd(char *cmd, data_pointers args[], int args_count)
+int exec_cmd(char *cmd, data_pointers args[], int args_count)
 {
   pid_t pid = fork();
   int arg_index;
@@ -306,52 +279,4 @@ static int exec_cmd(char *cmd, data_pointers args[], int args_count)
   waitpid(pid, &status, 0);
 
   return status;
-}
-
-/* SHELL INTERNAL COMMANDS IMPLEMENTATION */
-
-int cmd_exit(data_pointers args[])
-{
-  shouldExit = 1;
-  return args[0].i_var;
-}
-
-int cmd_echo(data_pointers args[])
-{
-  data_pointers *p = args;
-  while (p->s_pointer != NULL)
-  {
-    printf("%s ", p->s_pointer);
-    p++;
-  }
-
-  printf("\n");
-
-  return 0;
-}
-
-int cmd_type(data_pointers args[])
-{
-  int i;
-  int found = 0;
-
-  for (i = 0; i < commands_count; i++)
-  {
-    if (strcmp(args[0].s_pointer, commands[i].command) != 0)
-      continue;
-
-    found = 1;
-    printf("%s %s\n", commands[i].command, commands[i].desc);
-    break;
-  }
-
-  if (!found)
-  {
-    if (check_cmd(args[0].s_pointer, 1) != 0)
-    {
-      printf("%s %s\n", args[0].s_pointer, not_found_msg);
-    }
-  }
-
-  return 0;
 }
