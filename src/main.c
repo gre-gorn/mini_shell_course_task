@@ -271,6 +271,7 @@ int exec_cmd(char *cmd, data_pointers args[], int args_count)
     }
 
     execvp(cmd, argv);
+    perror("exexv failed");
     _exit(1);
   }
 
