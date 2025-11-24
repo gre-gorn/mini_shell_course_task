@@ -22,8 +22,11 @@ extern int cmd_cd(data_pointers args[]);
 
 extern char *get_cmd(char **tokens);
 extern char *get_arg(char **tokens, int index);
+extern void get_args(data_pointers dps[], char **tokens, int arg_count);
 extern int check_cmd(const char *cmd, int verbose);
 extern int exec_cmd(char *cmd, data_pointers args[], int args_count);
 extern int get_input(char *command_buffer, int buffer_size);
+extern int tokenize(char ***tokens, char *command_buffer, int *arg_count);
+extern int prepare_datapointers(data_pointers **dps, int arg_count);
 
 #endif

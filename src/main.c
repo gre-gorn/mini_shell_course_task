@@ -55,54 +55,24 @@ int main(int argc, char *argv[])
     if (command_buffer[0] == '\0') /* if buffer is empty continue */
       continue;
 
-    int i;
-    int found = 0;
+    char **tokens = NULL;
+    int arg_count = 0;
     char *buffer_copy = strdup(command_buffer);
-    char *p = buffer_copy;
-    char *token;
-    int tokens_cap = 2;
-    char **tokens = malloc(tokens_cap * sizeof(char *));
-    if (!tokens)
-    {
-      shouldExit = 1;
-      continue;
-    }
 
-    int token_index = 0;
+    shouldExit = tokenize(&tokens, buffer_copy, &arg_count);
 
-    while ((token = strsep(&p, " ")) != NULL)
-    {
-      if (*token == '\0')
-        continue;
+    if (shouldExit == 1)
+      break;
 
-      if (token_index >= tokens_cap)
-      {
-        tokens_cap *= 2;
-        char **tmp = realloc(tokens, tokens_cap * sizeof(char *));
-        if (!tmp)
-        {
-          shouldExit = 1;
-          break;
-        }
-        tokens = tmp;
-      }
+    data_pointers *dps;
+    shouldExit = prepare_datapointers(&dps, arg_count);
 
-      tokens[token_index] = token;
-      token_index++;
-    }
+    if (shouldExit == 1)
+      break;
 
-    tokens[token_index] = NULL;
-    int arg_count = token_index - 1;
+    int found = 0;
 
-    data_pointers *dps = malloc((arg_count + 1) * sizeof(data_pointers));
-    if (!dps)
-    {
-      shouldExit = 1;
-      continue;
-    }
-
-    memset(dps, 0, (arg_count + 1) * sizeof(data_pointers));
-
+    int i;
     for (i = 0; i < commands_count; i++)
     {
       if (strcmp(get_cmd(tokens), commands[i].command) != 0)
@@ -131,11 +101,7 @@ int main(int argc, char *argv[])
         break;
         case CMD_ECHO:
         {
-          int arg_index;
-          for (arg_index = 0; arg_index < arg_count; arg_index++)
-          {
-            dps[arg_index].s_pointer = get_arg(tokens, arg_index);
-          }
+          get_args(dps, tokens, arg_count);
         }
         break;
         case CMD_TYPE:
@@ -164,11 +130,7 @@ int main(int argc, char *argv[])
       char *cmd = get_cmd(tokens);
       if (check_cmd(cmd, 0) == 0)
       {
-        int arg_index;
-        for (arg_index = 0; arg_index < arg_count; arg_index++)
-        {
-          dps[arg_index].s_pointer = get_arg(tokens, arg_index);
-        }
+        get_args(dps, tokens, arg_count);
         exec_cmd(cmd, dps, arg_count);
       }
       else

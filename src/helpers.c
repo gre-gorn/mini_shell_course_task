@@ -72,7 +72,6 @@ int exec_cmd(char *cmd, data_pointers args[], int args_count)
         }
 
         execvp(cmd, argv);
-        perror("exexv failed");
         _exit(1);
     }
 
@@ -106,4 +105,13 @@ int get_input(char *command_buffer, int buffer_size)
     command_buffer[strcspn(command_buffer, "\n")] = '\0';
 
     return 0;
+}
+
+void get_args(data_pointers dps[], char **tokens, int arg_count)
+{
+    int arg_index;
+    for (arg_index = 0; arg_index < arg_count; arg_index++)
+    {
+        dps[arg_index].s_pointer = get_arg(tokens, arg_index);
+    }
 }
