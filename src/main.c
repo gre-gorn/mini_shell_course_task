@@ -29,6 +29,7 @@ typedef enum
   CMD_EXIT = 0,
   CMD_ECHO = 1,
   CMD_TYPE = 2,
+  CMD_PWD  = 3,
   LAST_CMD
 } command_type;
 
@@ -45,6 +46,7 @@ typedef struct
 int cmd_exit(data_pointers args[]);
 int cmd_echo(data_pointers args[]);
 int cmd_type(data_pointers args[]);
+int cmd_pwd(data_pointers args[]);
 
 int shouldExit = 0; /* TODO: consider using signal to exit */
 
@@ -53,6 +55,7 @@ command commands[LAST_CMD] = {
     {"exit", cmd_exit, ARGS_VARIABLE, CMD_EXIT, built_in_msg},
     {"echo", cmd_echo, ARGS_VARIABLE, CMD_ECHO, built_in_msg},
     {"type", cmd_type, 1, CMD_TYPE, built_in_msg},
+    {"pwd", cmd_pwd, 0, CMD_PWD, built_in_msg},
 };
 
 static const int commands_count = sizeof(commands) / sizeof(command);
@@ -190,7 +193,11 @@ int main(int argc, char *argv[])
           dps[0].s_pointer = get_arg(tokens, 0);
         }
         break;
-          break;
+	case CMD_PWD:
+	{
+
+        }
+	break;
         default:
           break;
         }
@@ -298,7 +305,8 @@ static int exec_cmd(char *cmd, data_pointers args[], int args_count)
     }
 
     execvp(cmd, argv);
-    _exit(1);
+    perror("exexv failed"); 
+   _exit(1);
   }
 
   /* wait for execute */
@@ -354,4 +362,16 @@ int cmd_type(data_pointers args[])
   }
 
   return 0;
+}
+
+int cmd_pwd(data_pointers args[])
+{
+  char cwd[512];
+  if (getcwd(cwd, sizeof(cwd)) != NULL)
+  {
+    printf("%s\n", cwd);
+    return 0;
+  }
+
+  return 1;
 }
