@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -67,7 +68,13 @@ int cmd_pwd(data_pointers args[])
 
 int cmd_cd(data_pointers args[])
 {
-    const char *dir = args[0].s_pointer;
+    char *dir = args[0].s_pointer;
+
+    if (*dir == '~')
+    {
+        dir = getenv("HOME");
+    }
+
     if (chdir(dir) == 0)
     {
         return 0;

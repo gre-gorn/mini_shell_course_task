@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "externs.h": "c",
+        "stdio.h": "c",
+        "wait.h": "c"
+    }
+}

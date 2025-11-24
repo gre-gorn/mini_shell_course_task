@@ -6,6 +6,8 @@
 extern int shouldExit;
 extern const command commands[];
 extern const int commands_count;
+extern const int CMD_IDX;
+extern const int ARG1_IDX;
 
 extern const char *not_found_msg;
 extern const char *numeric_arg_req_msg;
@@ -22,5 +24,6 @@ extern char *get_cmd(char **tokens);
 extern char *get_arg(char **tokens, int index);
 extern int check_cmd(const char *cmd, int verbose);
 extern int exec_cmd(char *cmd, data_pointers args[], int args_count);
+extern int get_input(char *command_buffer, int buffer_size);
 
 #endif

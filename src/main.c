@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/wait.h>
 
 #include "types.h"
 #include "externs.h"
@@ -37,6 +35,7 @@ int main(int argc, char *argv[])
 
   /* stores users input */
   char command_buffer[1024];
+  int buffer_size = sizeof(command_buffer);
 
   /* Flush after every printf */
   setbuf(stdout, NULL);
@@ -45,29 +44,15 @@ int main(int argc, char *argv[])
   {
     /* prompt */
     printf("$ ");
+    shouldExit = 0;
+    exit_code = 0;
 
-    /* get command */
-    if (!fgets(command_buffer, sizeof(command_buffer), stdin))
-    {
-      if (feof(stdin))
-      {
-        /* ctrl + d – standard interruption */
-        shouldExit = 1;
-        continue;
-      }
+    exit_code = get_input(command_buffer, buffer_size);
 
-      if (ferror(stdin))
-      {
-        exit_code = 1;
-        shouldExit = 1;
-        continue;
-      }
-    }
+    if (shouldExit == 1)
+      break;
 
-    /* Remove the trailing newline */
-    command_buffer[strcspn(command_buffer, "\n")] = '\0';
-
-    if (!*command_buffer)
+    if (command_buffer[0] == '\0') /* if buffer is empty continue */
       continue;
 
     int i;
@@ -203,81 +188,4 @@ int main(int argc, char *argv[])
   }
 
   exit(exit_code);
-}
-
-char *get_cmd(char **tokens)
-{
-  return tokens[CMD_IDX];
-}
-
-char *get_arg(char **tokens, int index)
-{
-  return tokens[CMD_IDX + ARG1_IDX + index];
-}
-
-int check_cmd(const char *cmd, int verbose)
-{
-  const char *path = getenv("PATH");
-  if (!path)
-  {
-    return 1;
-  }
-
-  char path_buf[512];
-  strncpy(path_buf, path, sizeof(path_buf));
-  path_buf[sizeof(path_buf) - 1] = '\0';
-
-  char *it = path_buf;
-  char *dir;
-
-  while ((dir = strsep(&it, ":")) != NULL)
-  {
-    if (*dir == '\0')
-      continue;
-
-    char full_path[1024];
-    snprintf(full_path, sizeof(full_path), "%s/%s", dir, cmd);
-
-    if (access(full_path, X_OK) != 0)
-      continue;
-
-    if (verbose == 1)
-    {
-      printf("%s is %s\n", cmd, full_path);
-    }
-    return 0;
-  }
-
-  return 1;
-}
-
-int exec_cmd(char *cmd, data_pointers args[], int args_count)
-{
-  pid_t pid = fork();
-  int arg_index;
-
-  if (pid == 0)
-  {
-    /* subprocess */
-    int arg_index = 0;
-    char *argv[args_count + 2];
-
-    argv[args_count + 1] = NULL; /* NULL terminatd array */
-
-    argv[arg_index] = cmd;
-    for (arg_index = 1; arg_index < args_count + 2; arg_index++)
-    {
-      argv[arg_index] = args[arg_index - 1].s_pointer;
-    }
-
-    execvp(cmd, argv);
-    perror("exexv failed");
-    _exit(1);
-  }
-
-  /* wait for execute */
-  int status;
-  waitpid(pid, &status, 0);
-
-  return status;
 }
